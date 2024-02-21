@@ -1,21 +1,45 @@
-#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
 
-/*  Blink
+// The pins for software serial communication
+int rxPin = 10;
+int txPin = 11;
 
-  Turns an LED on for one second, then off for one second, repeatedly.
+// Set up a new SoftwareSerial port
+SoftwareSerial gpsSerial(rxPin, txPin);
 
-// the setup function runs once when you press reset or power the board
-*/
 void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
+  // Start the hardware serial port
+  Serial.begin(9600);
+  // Start the software serial port at the baud rate of the GPS
+  gpsSerial.begin(9600);
+
+  Serial.println("GPS Receiver Test");
 }
 
-// the loop function runs over and over again forever
 void loop() {
-  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(1000);                       // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-  delay(1000);                       // wait for a second
-
+  static bool isConnected = false;
+  static unsigned long lastValidDataTime = 0;
+  
+  if (gpsSerial.available()) {
+    String line = gpsSerial.readStringUntil('\n');
+    // Check if the line is a valid GPRMC sentence
+    if (line.startsWith("$GPRMC")) {
+      int validIndex = line.indexOf('A', 0); // 'A' in GPRMC sentence means data is valid
+      if (validIndex > 0) {
+        // We have a valid connection
+        if (!isConnected) {
+          isConnected = true;
+          Serial.println("Connected to GPS!");
+        }
+        lastValidDataTime = millis(); // Update the last valid data received time
+      }
+    }
+  }
+  
+  // Check for connection timeout (5 seconds without valid data)
+  if (isConnected && millis() - lastValidDataTime > 5000) {
+    isConnected = false;
+    Serial.println("Disconnected or waiting for GPS signal...");
+  }
 }
